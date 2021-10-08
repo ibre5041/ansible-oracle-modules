@@ -379,7 +379,8 @@ def main():
 			oracle_home   = dict(required=False, aliases=['oh']),
 			hostname      = dict(default='localhost'),
 			port          = dict(default=1521, type="int"),
-			service_name  = dict(required=True, aliases = ['tns']),
+			service_name  = dict(required=False, aliases = ['tns']),
+			sid           = dict(required=False),
 			user          = dict(required=False),
 			password      = dict(required=False, no_log=True),
 			mode          = dict(default='normal', choices=["normal","sysdba"]),
@@ -398,13 +399,15 @@ def main():
 			grants         = dict(default=None, type="list")
 
 		),
-		mutually_exclusive=[['schema_password', 'schema_password_hash']]
+		mutually_exclusive=[('schema_password', 'schema_password_hash')],
+		required_one_of=[('service_name', 'sid')],
 	)
 
 	oracle_home = module.params["oracle_home"]
 	hostname = module.params["hostname"]
 	port = module.params["port"]
 	service_name = module.params["service_name"]
+	sid = module.params["sid"]
 	user = module.params["user"]
 	password = module.params["password"]
 	mode = module.params["mode"]
@@ -454,9 +457,6 @@ def main():
 
 
 	module.exit_json(msg='Undhandled exit', changed=False)
-
-
-
 
 
 from ansible.module_utils.basic import *
