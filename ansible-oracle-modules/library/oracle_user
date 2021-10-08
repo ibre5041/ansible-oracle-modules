@@ -383,6 +383,7 @@ def main():
 			user          = dict(required=False),
 			password      = dict(required=False, no_log=True),
 			mode          = dict(default='normal', choices=["normal","sysdba"]),
+
 			schema        = dict(default=None,aliases=['name']),
 			schema_password  = dict(default=None, no_log=True),
 			schema_password_hash  = dict(default=None, no_log=True),
@@ -421,43 +422,9 @@ def main():
 	grants = module.params["grants"]
 
 	if not cx_oracle_exists:
-		module.fail_json(msg="The cx_Oracle module is required. 'pip install cx_Oracle' should do the trick. If cx_Oracle is installed, make sure ORACLE_HOME & LD_LIBRARY_PATH is set")
+		module.fail_json(msg="The cx_Oracle module is required. 'pip install cx_Oracle' should do the trick. If cx_Oracle is installed, make sure ORACLE_HOME is set")
 
-
-	if oracle_home is not None:
-		os.environ['ORACLE_HOME'] = oracle_home.rstrip('/')
-		#os.environ['LD_LIBRARY_PATH'] = ld_library_path
-	elif 'ORACLE_HOME' in os.environ:
-		oracle_home     = os.environ['ORACLE_HOME']
-
-	wallet_connect = '/@%s' % service_name
-	try:
-		if (not user and not password ): # If neither user or password is supplied, the use of an oracle wallet is assumed
-			if mode == 'sysdba':
-				connect = wallet_connect
-				conn = cx_Oracle.connect(wallet_connect, mode=cx_Oracle.SYSDBA)
-			else:
-				connect = wallet_connect
-				conn = cx_Oracle.connect(wallet_connect)
-
-		elif (user and password ):
-			if mode == 'sysdba':
-				dsn = cx_Oracle.makedsn(host=hostname, port=port, service_name=service_name)
-				connect = dsn
-				conn = cx_Oracle.connect(user, password, dsn, mode=cx_Oracle.SYSDBA)
-			else:
-				dsn = cx_Oracle.makedsn(host=hostname, port=port, service_name=service_name)
-				connect = dsn
-				conn = cx_Oracle.connect(user, password, dsn)
-
-		elif (not(user) or not(password)):
-			module.fail_json(msg='Missing username or password for cx_Oracle')
-
-	except cx_Oracle.DatabaseError as exc:
-		error, = exc.args
-		msg = 'Could not connect to database - %s, connect descriptor: %s' % (error.message, connect)
-		module.fail_json(msg=msg, changed=False)
-
+	conn = oracle_connect(module)
 	cursor = conn.cursor()
 
 	if state not in ('absent'):
@@ -493,5 +460,6 @@ def main():
 
 
 from ansible.module_utils.basic import *
+from ansible.module_utils.oracle_utils import oracle_connect
 if __name__ == '__main__':
 	main()
