@@ -1,6 +1,13 @@
 
 from ansible.module_utils.basic import *
 
+try:
+	import cx_Oracle
+except ImportError:
+	cx_oracle_exists = False
+else:
+	cx_oracle_exists = True
+
 def oracle_connect(module):
     """
     Connect to the database using parameter provided by Ansible module instance.
@@ -27,15 +34,18 @@ def oracle_connect(module):
         sid = os.environ['ORACLE_SID']
         
     wallet_connect = '/@%s' % service_name
-    sysdba_connect = '/' % service_name
+    sysdba_connect = '/'
     try:
         if not user and not password: # If neither user or password is supplied, the use of an oracle wallet is assumed
             if mode == 'sysdba':
+                connect = wallet_connect
                 conn = cx_Oracle.connect(wallet_connect, mode=cx_Oracle.SYSDBA)
             else:
+                connect = wallet_connect
                 conn = cx_Oracle.connect(wallet_connect)
 
-        else user == 'sys' and mode == 'sysdba' and not password:
+        elif user == 'sys' and mode == 'sysdba' and not password:
+            connect = sysdba_connect
             conn = cx_Oracle.connect(sysdba_connect, mode=cx_Oracle.SYSDBA)
             
         elif (user and password ):
