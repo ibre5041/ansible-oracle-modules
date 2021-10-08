@@ -1,0 +1,27 @@
+---
+- hosts: rhel7-c
+  become: yes
+  become_user: oracle
+  become_method: sudo
+  #become_exec: "sudo -iu"
+  tasks:
+    # Check python interpreted is Python3, as this depends on cx_Oracle module
+    - name: Python3
+      debug:
+        var: ansible_python_interpreter
+
+    - name: Create DBA user
+      oracle_user:
+        #hostname: {{ hostname }}
+        #service_name: {{ service_name }}
+        sid: TEST19CDR
+        mode: SYSDBA
+        user: SYS
+        #password: {{ password }}
+        schema: IVAN
+        #schema_password_hash: {{ item.0.schema_password_hash }}
+        schema_password: IVAN
+        state: OPEN
+        default_tablespace: USERS
+        #grants: {{ item.1 }}
+
