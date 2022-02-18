@@ -101,13 +101,13 @@ def check_role_exists(module, msg, cursor, role, auth):
         return False
 
     role = clean_string(role)
-    #sql = 'select count(*) from dba_roles where role = upper(\'%s\')' % role
-    sql = 'select lower(role), lower(authentication_type) from dba_roles where role = upper(\'%s\')' % role
+    sql = 'select count(*) from dba_roles where role = upper(\'%s\')' % role
+    #sql = 'select lower(role), lower(authentication_type) from dba_roles where role = upper(\'%s\')' % role
 
 
     try:
             cursor.execute(sql)
-            result = (cursor.fetchone())
+            result = cursor.fetchone()[0]
     except cx_Oracle.DatabaseError as exc:
             error, = exc.args
             msg[0] = error.message+ 'sql: ' + sql
@@ -259,9 +259,10 @@ def main():
     msg = ['']
     module = AnsibleModule(
         argument_spec = dict(
+            oracle_home   = dict(required=False, aliases=['oh']),
             hostname      = dict(default='localhost'),
-            port          = dict(default=1521),
-            service_name  = dict(required=True),
+            port          = dict(default=1521, type="int"),
+            service_name  = dict(required=False, aliases = ['tns']),
             user          = dict(required=False),
             password      = dict(required=False, no_log=True),
             mode          = dict(default='normal', choices=["normal","sysdba"]),
@@ -274,6 +275,7 @@ def main():
 
     )
 
+    oracle_home = module.params["oracle_home"]
     hostname = module.params["hostname"]
     port = module.params["port"]
     service_name = module.params["service_name"]
@@ -290,34 +292,7 @@ def main():
     if not cx_oracle_exists:
         module.fail_json(msg="The cx_Oracle module is required. 'pip install cx_Oracle' should do the trick. If cx_Oracle is installed, make sure ORACLE_HOME & LD_LIBRARY_PATH is set")
 
-    wallet_connect = '/@%s' % service_name
-    try:
-        if (not user and not password ): # If neither user or password is supplied, the use of an oracle wallet is assumed
-            if mode == 'sysdba':
-                connect = wallet_connect
-                conn = cx_Oracle.connect(wallet_connect, mode=cx_Oracle.SYSDBA)
-            else:
-                connect = wallet_connect
-                conn = cx_Oracle.connect(wallet_connect)
-
-        elif (user and password ):
-            if mode == 'sysdba':
-                dsn = cx_Oracle.makedsn(host=hostname, port=port, service_name=service_name)
-                connect = dsn
-                conn = cx_Oracle.connect(user, password, dsn, mode=cx_Oracle.SYSDBA)
-            else:
-                dsn = cx_Oracle.makedsn(host=hostname, port=port, service_name=service_name)
-                connect = dsn
-                conn = cx_Oracle.connect(user, password, dsn)
-
-        elif (not(user) or not(password)):
-            module.fail_json(msg='Missing username or password for cx_Oracle')
-
-    except cx_Oracle.DatabaseError as exc:
-        error, = exc.args
-        msg[0] = 'Could not connect to database - %s, connect descriptor: %s' % (error.message, connect)
-        module.fail_json(msg=msg[0], changed=False)
-
+    conn = oracle_connect(module)
     cursor = conn.cursor()
 
     if state == 'present':
@@ -352,5 +327,6 @@ def main():
 
 
 from ansible.module_utils.basic import *
+from ansible.module_utils.oracle_utils import oracle_connect
 if __name__ == '__main__':
     main()
