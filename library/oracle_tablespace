@@ -134,14 +134,14 @@ def check_tablespace_exists(module, msg, cursor, tablespace):
     global status
 
     try:
-            cursor.execute(sql)
-            #result = cursor.fetchone()[0]
-            result = cursor.fetchall()
-            count = cursor.rowcount
+        cursor.execute(sql)
+        #result = cursor.fetchone()[0]
+        result = cursor.fetchall()
+        count = cursor.rowcount
     except cx_Oracle.DatabaseError as exc:
-            error, = exc.args
-            msg = error.message+ 'sql: ' + sql
-            return False
+        error, = exc.args
+        msg = error.message+ 'sql: ' + sql
+        return False
 
     if count > 0:
         list_of_dbfs = get_tablespace_files(module, msg, cursor, tablespace)
@@ -186,45 +186,45 @@ def create_tablespace(module, msg, cursor, tablespace, state, datafile, numfiles
                 module.fail_json(msg=msg, changed=False)
 
     if not datafile:
-         if skip_datafile:
-             if autoextend and not nextsize:
-                 module.fail_json(msg='Error: Missing NEXT size for autoextend',changed=False)
-             elif autoextend and nextsize and not maxsize:
-                 datafile_list = ','.join(' size %s autoextend on next %s' % (size,nextsize) for d in range(int(numfiles)) )
-             elif autoextend and nextsize and maxsize:
-                 datafile_list = ','.join(' size %s autoextend on next %s maxsize %s' % (size,nextsize,maxsize) for d in range(int(numfiles) ))
-             else:
-                 datafile_list = ','.join(' size %s ' % (size) for d in range(int(numfiles) ))
+        if skip_datafile:
+            if autoextend and nextsize and not maxsize:
+                datafile_list = ','.join(' size %s autoextend on next %s' % (size,nextsize) for d in range(int(numfiles)) )
+            elif autoextend and nextsize and maxsize:
+                datafile_list = ','.join(' size %s autoextend on next %s maxsize %s' % (size,nextsize,maxsize) for d in range(int(numfiles) ))
+            else:
+                datafile_list = ','.join(' size %s ' % (size) for d in range(int(numfiles) ))
 
-             # If db_create_file_dest IS set, and we're missing the datafile datafile we CAN continue because of OMF
-             if content == 'undo':
-                 if bigfile:
-                     sql = 'create bigfile undo tablespace %s datafile  size %s' % (tablespace, size)
-                 else:
-                     sql = 'create undo tablespace %s datafile  %s' % (tablespace, datafile_list)
+            # If db_create_file_dest IS set, and we're missing the datafile datafile we CAN continue because of OMF
+            if content == 'undo':
+                if bigfile:
+                    sql = 'create bigfile undo tablespace %s datafile  size %s' % (tablespace, size)
+                else:
+                    sql = 'create undo tablespace %s datafile  %s' % (tablespace, datafile_list)
 
-             elif content == 'temp':
-                 if bigfile:
-                     sql = 'create bigfile temporary tablespace %s tempfile size %s' % (tablespace,size)
-                 else:
-                     sql = 'create temporary tablespace %s tempfile %s' % (tablespace, datafile_list)
+            elif content == 'temp':
+                if bigfile:
+                    sql = 'create bigfile temporary tablespace %s tempfile size %s' % (tablespace,size)
+                else:
+                    sql = 'create temporary tablespace %s tempfile %s' % (tablespace, datafile_list)
 
-             else:
-                 if bigfile:
-                     sql = 'create bigfile tablespace %s datafile size %s' % (tablespace, size)
-                 else:
-                     sql = 'create tablespace %s datafile  %s' % (tablespace, datafile_list)
+            else:
+                if bigfile:
+                    sql = 'create bigfile tablespace %s datafile size %s' % (tablespace, size)
+                else:
+                    sql = 'create tablespace %s datafile  %s' % (tablespace, datafile_list)
 
-             if execute_sql(module, msg, cursor, sql):
-                 crfiles = numfiles
-                 return True, crfiles
-             else:
-                 return False
+            if module.check_mode:
+                msg = 'About to execute: %s' % sql
+                module.exit_json(msg=msg, changed=True)                
 
-         elif not skip_datafile:
+            if execute_sql(module, msg, cursor, sql):
+                crfiles = numfiles
+                return True, crfiles
+            else:
+                return False
 
+        elif not skip_datafile:
              # If db_create_file_dest is NOT set, and we're missing the datafile datafile we can't continue
-
              msg = 'Error: Missing datafile name/datafile. Either set db_create_file_dest or specify one or more datafiles'
              module.fail_json(msg=msg, changed=False)
 
@@ -257,6 +257,10 @@ def create_tablespace(module, msg, cursor, tablespace, state, datafile, numfiles
                 sql = 'create bigfile tablespace %s datafile  %s' % (tablespace, datafile_list)
             else:
                 sql = 'create tablespace %s datafile %s' % (tablespace, datafile_list)
+
+        if module.check_mode:
+            msg = 'About to execute: %s' % sql
+            module.exit_json(msg=msg, changed=True)                
 
         if execute_sql(module, msg, cursor, sql):
             crfiles = len(datafile)
@@ -409,13 +413,15 @@ def ensure_tablespace_state (module,msg,cursor,tablespace, state, datafile, numf
 
     attribute_change = ensure_tablespace_attributes(module,msg,cursor,tablespace, autoextend, nextsize, maxsize)
 
+    if module.check_mode and alter_tbs_list:
+        msg = 'About to execute: %s' % (';'.join(alter_tbs_list))
+        module.exit_json(msg=msg, changed=True)                
 
     #module.exit_json(msg=alter_tbs_list)
     # Enforce actual changes (if there are any)
     dbf_change = False
-    if len(alter_tbs_list) > 0:
-        for sql in alter_tbs_list:
-            execute_sql(module,msg,cursor,sql)
+    for sql in alter_tbs_list:
+        execute_sql(module,msg,cursor,sql)
         dbf_change = True
 
     if (dbf_change or attribute_change):
@@ -624,7 +630,7 @@ def get_tablespace_files(module, msg, cursor, tablespace):
     return result
 
 # Make tablespace read only
-def manage_tablespace(msg, cursor, tablespace, state):
+def manage_tablespace(module, msg, cursor, tablespace, state):
 
     if state == 'read_only':
         sql = 'alter tablespace %s read only' % tablespace
@@ -638,6 +644,10 @@ def manage_tablespace(msg, cursor, tablespace, state):
     elif state == 'online':
         sql = 'alter tablespace %s online' % tablespace
         msg = 'Tablespace %s has been put online' % tablespace
+
+    if module.check_mode:
+        msg = 'About to execute: %s' % sql
+        module.exit_json(msg=msg, changed=True)                
 
     try:
         cursor.execute(sql)
@@ -654,6 +664,10 @@ def manage_tablespace(msg, cursor, tablespace, state):
 def drop_tablespace(msg, cursor, tablespace):
 
     sql = 'drop tablespace %s including contents and datafiles' % tablespace
+
+    if module.check_mode:
+        msg = 'About to execute: %s' % sql
+        module.exit_json(msg=msg, changed=True)                
 
     try:
         cursor.execute(sql)
@@ -695,16 +709,18 @@ def main():
     newtbs = False
     module = AnsibleModule(
         argument_spec = dict(
+            oracle_home   = dict(required=False, aliases=['oh']),
             hostname      = dict(default='localhost'),
-            port          = dict(default=1521),
-            service_name  = dict(required=True),
+            port          = dict(required=False, default=1521, type='int'),
+            service_name  = dict(required=False),
             mode          = dict(default='normal', choices=['normal', 'sysdba']),
             user          = dict(required=False),
             password      = dict(required=False, no_log=True),
+
             tablespace    = dict(required=True, aliases=['name','ts']),
             state         = dict(default="present", choices=["present", "absent", "read_only", "read_write", "offline", "online" ]),
             bigfile       = dict(default=False, type='bool'),
-            datafile          = dict(required=False, type='list', aliases=['datafile','df']),
+            datafile      = dict(required=False, type='list', aliases=['datafile','df']),
             numfiles      = dict(required=False),
             size          = dict(required=False),
             content       = dict(default='permanent', choices=['permanent', 'temp', 'undo']),
@@ -712,10 +728,11 @@ def main():
             nextsize      = dict(required=False, aliases=['next']),
             maxsize       = dict(required=False, aliases=['max']),
         ),
-        mutually_exclusive = [['datafile','numfiles']]
+        mutually_exclusive = [['datafile','numfiles']],
+        supports_check_mode=True
     )
 
-
+    oracle_home = module.params["oracle_home"]
     hostname = module.params["hostname"]
     port = module.params["port"]
     service_name = module.params["service_name"]
@@ -733,38 +750,10 @@ def main():
     nextsize = module.params["nextsize"]
     maxsize = module.params["maxsize"]
 
-
     if not cx_oracle_exists:
-        module.fail_json(msg="The cx_Oracle module is required. 'pip install cx_Oracle' should do the trick. If cx_Oracle is installed, make sure ORACLE_HOME & LD_LIBRARY_datafile is set")
+        module.fail_json(msg="The cx_Oracle module is required. 'pip install cx_Oracle' should do the trick. If cx_Oracle is installed, make sure ORACLE_HOME is set")
 
-    wallet_connect = '/@%s' % service_name
-    try:
-        if (not user and not password ): # If neither user or password is supplied, the use of an oracle wallet is assumed
-            if mode == 'sysdba':
-                connect = wallet_connect
-                conn = cx_Oracle.connect(wallet_connect, mode=cx_Oracle.SYSDBA)
-            else:
-                connect = wallet_connect
-                conn = cx_Oracle.connect(wallet_connect)
-
-        elif (user and password ):
-            if mode == 'sysdba':
-                dsn = cx_Oracle.makedsn(host=hostname, port=port, service_name=service_name)
-                connect = dsn
-                conn = cx_Oracle.connect(user, password, dsn, mode=cx_Oracle.SYSDBA)
-            else:
-                dsn = cx_Oracle.makedsn(host=hostname, port=port, service_name=service_name)
-                connect = dsn
-                conn = cx_Oracle.connect(user, password, dsn)
-
-        elif (not(user) or not(password)):
-            module.fail_json(msg='Missing username or password for cx_Oracle')
-
-    except cx_Oracle.DatabaseError as exc:
-        error, = exc.args
-        msg = 'Could not connect to database - %s, connect descriptor: %s' % (error.message, connect)
-        module.fail_json(msg=msg, changed=False)
-
+    conn = oracle_connect(module)
     cursor = conn.cursor()
 
     if state in ('present','read_only','read_write','offline','online'):
@@ -779,7 +768,7 @@ def main():
 
     elif state == 'absent':
         if check_tablespace_exists(module, msg, cursor, tablespace):
-            if drop_tablespace(msg, cursor, tablespace):
+            if drop_tablespace(module, msg, cursor, tablespace):
                 msg = 'The tablespace %s has been dropped successfully' % tablespace
                 module.exit_json(msg=msg, changed=True)
         else:
@@ -787,5 +776,6 @@ def main():
 
 
 from ansible.module_utils.basic import *
+from ansible.module_utils.oracle_utils import oracle_connect
 if __name__ == '__main__':
     main()
