@@ -31,27 +31,25 @@ pre-req: cx_Oracle
  - parses oratab, crs_stat output to get list of databases
  - set facts as list of dict 
 
-     vars:
-     # See list of affected databases, this variable overrides default: sid_list.oracle_list.keys()
-     # db_list | default(sid_list.oracle_list.keys())
-     # Comment out this variable to apply playbook onto all databases
-       db_list: [ TEST ]
-
-     tasks:
-     - oracle_oratab:
-       register: sid_list
-
-     - name: Print Facts
-       debug:
-         var: sid_list
-
-     - oracle_role:
-       mode: sysdba
-         role: SOME_ROLE
-       environment:
-         ORACLE_HOME: "{{ sid_list.oracle_list[item].ORACLE_HOME }}"
-         ORACLE_SID:  "{{ sid_list.oracle_list[item].ORACLE_SID }}"
-       loop: "{{ db_list | default(sid_list.oracle_list.keys())}}"
+       vars:
+       # See list of affected databases, this variable overrides default: sid_list.oracle_list.keys()
+       # db_list | default(sid_list.oracle_list.keys())
+       # Comment out this variable to apply playbook onto all databases
+          db_list: [ TEST ]
+       
+       tasks:
+         - oracle_oratab:
+           register: sid_list
+         - name: Print Facts
+           debug:
+             var: sid_list
+         - oracle_role:
+           mode: sysdba
+             role: SOME_ROLE
+           environment:
+             ORACLE_HOME: "{{ sid_list.oracle_list[item].ORACLE_HOME }}"
+             ORACLE_SID:  "{{ sid_list.oracle_list[item].ORACLE_SID }}"
+           loop: "{{ db_list | default(sid_list.oracle_list.keys())}}"
 
 **oracle_user**
 
