@@ -192,12 +192,12 @@ def main():
             sqlfile = clean_sqlfile(sqlfile)
             
             if sqlfile.endswith('/') or ('create or replace') in sqlfile.lower():
-                sqldelim = '/'
+                sqldelim = '^/'
             else:
                 sqldelim = ';'
             
             sqlfile = sqlfile.strip(sqldelim)
-            sql = sqlfile.split(sqldelim)
+            sql = re.split(sqldelim, sqlfile)
             
             for q in sql:
                 execute_sql(module, cursor, conn, q)
