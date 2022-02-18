@@ -100,19 +100,17 @@ def check_parameter_exists(module, mode, msg, cursor, name):
 
     try:
             cursor.execute(sql)
-            result = (cursor.fetchone())
+            result = cursor.fetchone()[0]
     except cx_Oracle.DatabaseError as exc:
             error, = exc.args
             msg = error.message+ 'sql: ' + sql
             return False
 
-    if result > 0:
+    if result:
         return True
     else:
         msg = 'The parameter (%s) doesn\'t exist' % name
         return False
-
-
 
 
 def modify_parameter(module, mode, msg, cursor, name, value, comment, scope, sid):
@@ -125,7 +123,6 @@ def modify_parameter(module, mode, msg, cursor, name, value, comment, scope, sid
         return False
 
 
-
     currval = get_curr_value(module, mode, msg, cursor, name, scope)
 
     if currval == value.lower() or not currval and value == "''":
@@ -133,7 +130,7 @@ def modify_parameter(module, mode, msg, cursor, name, value, comment, scope, sid
         return True
 
     if module.check_mode:
-        msg = '%s will be changed, new: %s, old: %s' % (name,value,currval.upper())
+        msg = '%s will be changed, new: %s, old: %s' % (name,value, currval.upper())
         module.exit_json(msg=msg, changed=True)
 
     if name.startswith(starters):
@@ -159,6 +156,7 @@ def modify_parameter(module, mode, msg, cursor, name, value, comment, scope, sid
     module.exit_json(msg=msg, changed=True)
     return True
 
+
 def quote_value(value):
 
     if len(value) > 0:
@@ -178,6 +176,7 @@ def clean_string(item):
     item = item.replace("""\"""","")
 
     return item
+
 
 def reset_parameter(module, mode, msg, cursor, name, value, comment, scope, sid):
 
@@ -238,6 +237,9 @@ def get_curr_value(module, mode, msg, cursor, name, scope):
         msg = 'Blergh, something went wrong while getting current value - %s sql: %s' % (error.message, sql)
         module.fail_json(msg=msg, changed=False)
 
+    if result is None:
+        result = 'NULL'
+
     return result
 
 
@@ -246,12 +248,14 @@ def main():
     msg = ['']
     module = AnsibleModule(
         argument_spec = dict(
+            oracle_home   = dict(required=False, aliases=['oh']),
             hostname      = dict(default='localhost'),
-            port          = dict(default=1521),
-            service_name  = dict(required=True),
+            port          = dict(required=False, default=1521, type='int'),
+            service_name  = dict(required=False),
             user          = dict(required=False),
             password      = dict(required=False, no_log=True),
             mode          = dict(default='normal', choices=["normal","sysdba"]),
+
             name          = dict(default=None, aliases = ['parameter']),
             value         = dict(default=None),
             comment       = dict(default=None),
@@ -275,40 +279,10 @@ def main():
     scope = module.params["scope"]
     sid = module.params["sid"]
 
-
-
-
     if not cx_oracle_exists:
-        module.fail_json(msg="The cx_Oracle module is required. 'pip install cx_Oracle' should do the trick. If cx_Oracle is installed, make sure ORACLE_HOME & LD_LIBRARY_PATH is set")
+        module.fail_json(msg="The cx_Oracle module is required. 'pip install cx_Oracle' should do the trick. If cx_Oracle is installed, make sure ORACLE_HOME is set")
 
-    wallet_connect = '/@%s' % service_name
-    try:
-        if (not user and not password ): # If neither user or password is supplied, the use of an oracle wallet is assumed
-            if mode == 'sysdba':
-                connect = wallet_connect
-                conn = cx_Oracle.connect(wallet_connect, mode=cx_Oracle.SYSDBA)
-            else:
-                connect = wallet_connect
-                conn = cx_Oracle.connect(wallet_connect)
-
-        elif (user and password ):
-            if mode == 'sysdba':
-                dsn = cx_Oracle.makedsn(host=hostname, port=port, service_name=service_name)
-                connect = dsn
-                conn = cx_Oracle.connect(user, password, dsn, mode=cx_Oracle.SYSDBA)
-            else:
-                dsn = cx_Oracle.makedsn(host=hostname, port=port, service_name=service_name)
-                connect = dsn
-                conn = cx_Oracle.connect(user, password, dsn)
-
-        elif (not(user) or not(password)):
-            module.fail_json(msg='Missing username or password for cx_Oracle')
-
-    except cx_Oracle.DatabaseError as exc:
-        error, = exc.args
-        msg = 'Could not connect to database - %s, connect descriptor: %s' % (error.message, connect)
-        module.fail_json(msg=msg, changed=False)
-
+    conn = oracle_connect(module)
     cursor = conn.cursor()
 
     if state == 'present':
@@ -334,10 +308,7 @@ def main():
     module.exit_json(msg=msg, changed=False)
 
 
-
-
-
-
 from ansible.module_utils.basic import *
+from ansible.module_utils.oracle_utils import oracle_connect
 if __name__ == '__main__':
     main()
