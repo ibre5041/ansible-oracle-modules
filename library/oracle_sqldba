@@ -241,7 +241,7 @@ def run_sql(sql, username, password, pdb):
     t = None
     try:
         sql_cmd = sql_input(sql, username, password, pdb)
-        sql_process = Popen(sqlplus(), stdin = PIPE, stdout = PIPE, stderr = PIPE)
+        sql_process = Popen(sqlplus(), stdin = PIPE, stdout = PIPE, stderr = PIPE, universal_newlines=True)
         if timeout > 0:
             t = Timer(timeout, kill_process)
             t.start()
@@ -314,7 +314,7 @@ def run_catcon_pl(catcon_pl):
         catcon_cmd += [ "-a", "1" ]
     catcon_cmd += [ "--" ] + cc_script
     try:
-        sql_process = Popen(catcon_cmd, stdout = PIPE, stderr = PIPE)
+        sql_process = Popen(catcon_cmd, stdout = PIPE, stderr = PIPE, universal_newlines=True)
         if timeout > 0:
             t = Timer(timeout, kill_process)
             t.start()
