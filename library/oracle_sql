@@ -85,10 +85,15 @@ else:
     cx_oracle_exists = True
 
 
+def rows_to_dict_list(cursor):
+    columns = [i[0] for i in cursor.description]
+    return [dict(zip(columns, row)) for row in cursor]
+
 def execute_sql_get(module, cursor, sql):
     try:
-        cursor.execute(sql)
-        result = (cursor.fetchall())
+        c = cursor.execute(sql)
+        result = rows_to_dict_list(c)
+        c.close()
     except cx_Oracle.DatabaseError as exc:
         error, = exc.args
         msg = 'Something went wrong while executing sql_get - %s sql: %s' % (error.message, sql)
@@ -163,6 +168,7 @@ def main():
     port = module.params["port"]
     sql = module.params["sql"]
     script = module.params["script"]
+    
 
     if not cx_oracle_exists:
         msg = "The cx_Oracle module is required. Also set LD_LIBRARY_PATH & ORACLE_HOME"
@@ -192,12 +198,12 @@ def main():
             sqlfile = clean_sqlfile(sqlfile)
             
             if sqlfile.endswith('/') or ('create or replace') in sqlfile.lower():
-                sqldelim = '^/'
+                sqldelim = '/'
             else:
                 sqldelim = ';'
             
             sqlfile = sqlfile.strip(sqldelim)
-            sql = re.split(sqldelim, sqlfile)
+            sql = sqlfile.split(sqldelim)
             
             for q in sql:
                 execute_sql(module, cursor, conn, q)
