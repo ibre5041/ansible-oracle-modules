@@ -290,16 +290,17 @@ def get_obj_privs (module, msg, cursor, schema, object_privs, grants_mode):
                         rsql = "revoke %s on %s from %s" % (','.join(a for a in priv_revoke),wp_object,schema)
                         revoke_list.append(rsql)
 
-    if len(grant_list) > 0:
-        for a in grant_list:
-            total_sql_obj.append(a)
-
     if grants_mode.lower() == 'enforce':
         if len(revoke_list) > 0:
             for a in revoke_list:
                 total_sql_obj.append(a)
-    else:
-        pass
+
+    if len(grant_list) > 0:
+        for a in grant_list:
+            total_sql_obj.append(a)
+
+
+    #module.exit_json(msg=total_sql_obj)
 
     return total_sql_obj
 # Add grants to the schema/role
@@ -333,7 +334,7 @@ def ensure_grants(module, msg, cursor, schema, wanted_grants_list, object_privs,
             total_sql.append(o)
 
 
-    # module.exit_json(msg=total_sql)
+    #module.exit_json(msg=total_sql)
     exceptions_list=['DBA']
     exceptions_priv=['UNLIMITED TABLESPACE']
 
@@ -375,6 +376,14 @@ def ensure_grants(module, msg, cursor, schema, wanted_grants_list, object_privs,
         #module.exit_json(msg="Nothing to do", changed=False)
     else:
         # Convert the list of grants to a string
+
+        if grants_mode.lower() == 'enforce':
+            if any(grants_to_remove):
+                grants_to_remove = ','.join(grants_to_remove)
+                grants_to_remove = clean_string(grants_to_remove)
+                remove_sql += 'revoke %s from %s' % (grants_to_remove, schema)
+                total_sql.append(remove_sql)
+
         if any(grants_to_add):
             grants_to_add = ','.join(grants_to_add)
             grants_to_add = clean_string(grants_to_add)
@@ -384,14 +393,7 @@ def ensure_grants(module, msg, cursor, schema, wanted_grants_list, object_privs,
             total_sql.append(add_sql)
 
 
-        if grants_mode.lower() == 'enforce':
-            if any(grants_to_remove):
-                grants_to_remove = ','.join(grants_to_remove)
-                grants_to_remove = clean_string(grants_to_remove)
-                remove_sql += 'revoke %s from %s' % (grants_to_remove, schema)
-                total_sql.append(remove_sql)
-        else:
-            pass
+    # module.exit_json(msg=total_sql)
 
 
     # module.exit_json(msg=total_sql)
