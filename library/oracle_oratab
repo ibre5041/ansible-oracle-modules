@@ -95,6 +95,10 @@ class homes():
                     continue
 
                 ORACLE_SID, ORACLE_HOME, _ = line.split(':')
+
+                if not os.path.exists(ORACLE_HOME):
+                    continue
+
                 self.add_sid(ORACLE_SID=ORACLE_SID, ORACLE_HOME=ORACLE_HOME)
 
     def list_processes(self):
@@ -237,9 +241,9 @@ def main():
     running_only = module.params['running_only']
 
     h = homes()
+    h.parse_oratab()
     h.list_crs_instances()
     h.list_processes()
-    h.parse_oratab()
 
     if running_only:
         for sid in list(h.facts_item):
