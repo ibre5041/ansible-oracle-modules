@@ -112,6 +112,8 @@ EXAMPLES = '''
 
 '''
 import os
+from ansible.module_utils.basic import AnsibleModule
+from ansible.module_utils.oracle_utils import oracle_connect
 
 try:
     import cx_Oracle
@@ -281,39 +283,8 @@ def main():
         msg = "The cx_Oracle module is required. 'pip install cx_Oracle' should do the trick. If cx_Oracle is installed, make sure ORACLE_HOME & LD_LIBRARY_PATH is set"
         module.fail_json(msg=msg)
 
-    wallet_connect = '/@%s' % service_name
-    try:
-        if (not user and not password) : # If neither user or password is supplied, the use of an oracle wallet is assumed
-            connect = wallet_connect
-            if mode == 'sysdba':
-                conn = cx_Oracle.connect(wallet_connect, mode=cx_Oracle.SYSDBA)
-            else:
-                conn = cx_Oracle.connect(wallet_connect)
-        elif (user and password):
-            dsn = cx_Oracle.makedsn(host=hostname, port=port, service_name=service_name)
-            connect = dsn
-            if mode == 'sysdba':
-                conn = cx_Oracle.connect(user, password, dsn, mode=cx_Oracle.SYSDBA)
-            else:
-                conn = cx_Oracle.connect(user, password, dsn)
-        elif (not(user) or not(password)):
-            module.fail_json(msg='Missing username or password for cx_Oracle')
-
-    except cx_Oracle.DatabaseError as exc:
-        error, = exc.args
-        msg = 'Could not connect to DB: %s, connect descriptor: %s, username: %s, pass: %s' % (error.message, connect,user,password)
-        module.fail_json(msg=msg, changed=False)
-
+    conn = oracle_connect(module)
     cursor = conn.cursor()
-
-
-    if oracle_home is not None:
-        os.environ['ORACLE_HOME'] = oracle_home
-    elif 'ORACLE_HOME' in os.environ:
-        oracle_home = os.environ['ORACLE_HOME']
-    else:
-        msg = 'ORACLE_HOME variable not set. Please set it and re-run the command'
-        module.fail_json(msg=msg, changed=False)
 
 
     if state == 'present':
@@ -324,7 +295,8 @@ def main():
              else:
                  module.fail_json(msg=msg, changed=False)
         else:
-            ensure_profile_state(cursor, module, msg, name, state, attribute_name, attribute_value)
+             module.exit_json(msg=msg, changed=False)
+#            ensure_profile_state(cursor, module, msg, name, state, attribute_name, attribute_value)
 
     elif state == 'absent' :
         if check_profile_exists(cursor, module, msg, name):
@@ -342,7 +314,5 @@ def main():
 
 
 
-
-from ansible.module_utils.basic import *
 if __name__ == '__main__':
     main()
