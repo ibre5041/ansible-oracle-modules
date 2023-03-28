@@ -161,6 +161,8 @@ def create_user(module, cursor, schema, schema_password, schema_password_hash, d
         sql = 'create user %s identified globally ' % (schema)
     elif authentication_type == 'external':
         sql = 'create user %s identified externally ' % (schema)
+    elif authentication_type == 'none':
+        sql = 'create user %s ' % (schema)
 
     if (default_tablespace):
         sql += 'default tablespace %s '% default_tablespace
@@ -196,6 +198,7 @@ def create_user(module, cursor, schema, schema_password, schema_password_hash, d
 
     # module.exit_json(msg=total_sql, changed=True)
     for a in total_sql:
+        #module.warn(sql)
         execute_sql(module, cursor, a)
 
     return True
@@ -237,6 +240,8 @@ def modify_user(module, cursor, schema, schema_password, schema_password_hash, d
             sql_get_curr_def += ' ,lower(authentication_type) as authentication_type'
         elif authentication_type == 'global':
             sql += ' identified globally '
+            sql_get_curr_def += ' ,lower(authentication_type) as authentication_type'
+        elif authentication_type == 'none':
             sql_get_curr_def += ' ,lower(authentication_type) as authentication_type'
 
     if default_tablespace:
@@ -398,7 +403,7 @@ def main():
             default_temp_tablespace = dict(default=None),
             update_password = dict(default='always', choices=['on_create','always'], no_log=False),
             profile        = dict(default=None),
-            authentication_type = dict(default='password', choices=['password','external','global']),
+            authentication_type = dict(default='password', choices=['password','external','global', 'none']),
             container      = dict(default=None),
             container_data = dict(default=None),
             grants         = dict(default=None, type="list")
