@@ -87,7 +87,7 @@ options:
     datafile_dest:
         description:
             - Where the database files should be placed (ASM diskgroup or filesystem path)
-        required: False
+        required: True
         default: False
         aliases: ['dfd']
     recoveryfile_dest:
@@ -514,6 +514,12 @@ def create_db(module):
         elif major_version == '11.2':
             if amm == True:
                 command += ' -automaticMemoryManagement '
+        elif major_version.startswith('19'):
+            if amm:
+                command += ' -memoryMgmtType AUTO '
+            else:
+                command += ' -memoryMgmtType AUTO_SGA '
+            
     if customscripts is not None:
         scriptlist = ",".join(customscripts)
         command += ' -customScripts %s ' % (scriptlist)
@@ -995,7 +1001,7 @@ def main():
             listeners           = dict(required=False, aliases=['listener']),
             cdb                 = dict(default=False, type='bool', aliases= ['container']),
             local_undo          = dict(default=True, type='bool'),
-            datafile_dest       = dict(required=False, aliases= ['dfd']),
+            datafile_dest       = dict(required=True, aliases= ['dfd']),
             recoveryfile_dest   = dict(required=False, aliases= ['rfd']),
             storage_type        = dict(default='FS', aliases= ['storage'], choices = ['FS','ASM']),
             omf                 = dict(default=True, type='bool'),
