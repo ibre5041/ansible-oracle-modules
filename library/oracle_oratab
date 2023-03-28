@@ -343,6 +343,8 @@ def main():
         if h.facts_item[sid]["running"]:
             status = query_db_status(module, h.facts_item[sid]['owner'], h.facts_item[sid]['ORACLE_HOME'], h.facts_item[sid]['ORACLE_SID'])
             h.facts_item[sid]['status'] = status
+        else:
+            h.facts_item[sid]['status'] = ['DOWN']
         
     if running_only:
         for sid in list(h.facts_item):
