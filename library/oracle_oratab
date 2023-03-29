@@ -28,6 +28,7 @@ from pwd import getpwuid
 
 from ansible.module_utils.basic import AnsibleModule
 
+module = None
 
 class homes():
 
@@ -104,6 +105,7 @@ class homes():
                 self.add_sid(ORACLE_SID=ORACLE_SID, ORACLE_HOME=ORACLE_HOME)
 
     def list_processes(self):
+        global module
         """
         # Emulate trick form tanelpoder
         # https://tanelpoder.com/2011/02/28/finding-oracle-homes-with/
@@ -163,7 +165,16 @@ class homes():
                                 proc.poll()
                                 if proc.returncode is not None:
                                     break
-                        pass
+                        pass                    
+                    if not ORACLE_HOME:
+                        own_uid = os.geteuid()
+                        ora_uid = os.stat(cmd_line_file).st_uid
+                        if self.crsctl:
+                            crs_uid = os.stat(self.crsctl).st_uid
+                        else:
+                            crs_uid = None
+                        if own_uid != 0 and own_uid != ora_uid:
+                            module.fail_json(msg='I(uid={}) am not oracle process owner(uid={}) and I am not root'.format(own_uid, ora_uid), changed=False)
 
                     self.add_sid(ORACLE_SID=ORACLE_SID, ORACLE_HOME=ORACLE_HOME, running=True)
 
@@ -209,7 +220,7 @@ class homes():
         return ORACLE_BASE
 
     def add_home(self, ORACLE_HOME):
-        if ORACLE_HOME not in self.homes:
+        if ORACLE_HOME and ORACLE_HOME not in self.homes:
             ORACLE_BASE = self.base_from_home(ORACLE_HOME)
             self.homes[ORACLE_HOME] = {'ORACLE_HOME': ORACLE_HOME, 'ORACLE_BASE': ORACLE_BASE}
 
@@ -224,16 +235,18 @@ class homes():
                 sid['running'] = running
         else:
             self.add_home(ORACLE_HOME)
+            if ORACLE_HOME and ORACLE_HOME in self.homes[ORACLE_HOME]:
+                ORACLE_BASE = self.homes[ORACLE_HOME]['ORACLE_BASE']
+            else:
+                ORACLE_BASE = None            
             self.facts_item[ORACLE_SID] = {'ORACLE_SID': ORACLE_SID
                 , 'ORACLE_HOME': ORACLE_HOME
-                , 'ORACLE_BASE': self.homes[ORACLE_HOME]['ORACLE_BASE']
+                , 'ORACLE_BASE': ORACLE_BASE
                 , 'running': running}
 
 
-def query_db_status(module, oracle_owner, oracle_home, oracle_sid):
-    if oracle_sid.startswith('+ASM'):
-        return ['ASM', 'STARTED']
-    
+def query_db_status(oracle_owner, oracle_home, oracle_sid):
+    global module
     sqlplus_path = Path(oracle_home, 'bin', 'sqlplus')
     args = [str(sqlplus_path), '-S', '/', 'as', 'sysdba']
     pw_record = pwd.getpwnam(oracle_owner)
@@ -254,10 +267,13 @@ def query_db_status(module, oracle_owner, oracle_home, oracle_sid):
         process = subprocess.Popen(args,
                                    preexec_fn=demote(user_uid, user_gid, user_gids),
                                    cwd='/', env=env, stdout=subprocess.PIPE, stdin=subprocess.PIPE)
-    else:
+    elif os.getuid() == user_uid:        
         process = subprocess.Popen(args,
                                    cwd='/', env=env, stdout=subprocess.PIPE, stdin=subprocess.PIPE)
-    
+    else:
+        module.warn('Can not execute sqlplus(uid={})'.format(user_uid))
+        return []
+        
     sql = """
     select status from v$instance;
     select open_mode from v$database;
@@ -288,6 +304,11 @@ def query_db_status(module, oracle_owner, oracle_home, oracle_sid):
             value  = False        
     #module.warn(str(r))
     #module.warn("Exit code {}".format(process.returncode))
+    if oracle_sid.startswith('+ASM') and r['STATUS'] == 'STARTED':
+        return ['ASM', 'STARTED']
+    elif oracle_sid.startswith('+ASM'):
+        return ['ASM']
+    
     if r['STATUS'] == 'STARTED':
         return ['STARTED']
     elif r['STATUS'] == 'MOUNTED' and int(r['ORA_DG_ON']):
@@ -311,6 +332,7 @@ def demote(user_uid, user_gid, supplementary_groups):
 
 # Ansible code
 def main():
+    global module
     oracle_list = []
     module = AnsibleModule(
         argument_spec = dict(
@@ -341,7 +363,7 @@ def main():
             pass
 
         if h.facts_item[sid]["running"]:
-            status = query_db_status(module, h.facts_item[sid]['owner'], h.facts_item[sid]['ORACLE_HOME'], h.facts_item[sid]['ORACLE_SID'])
+            status = query_db_status(h.facts_item[sid]['owner'], h.facts_item[sid]['ORACLE_HOME'], h.facts_item[sid]['ORACLE_SID'])
             h.facts_item[sid]['status'] = status
         else:
             h.facts_item[sid]['status'] = ['DOWN']
