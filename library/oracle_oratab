@@ -271,7 +271,7 @@ def query_db_status(oracle_owner, oracle_home, oracle_sid):
         process = subprocess.Popen(args,
                                    cwd='/', env=env, stdout=subprocess.PIPE, stdin=subprocess.PIPE)
     else:
-        module.warn('Can not execute sqlplus(uid={})'.format(user_uid))
+        module.fail_json(msg='Can not execute sqlplus(uid={})'.format(user_uid), changed=False)
         return []
         
     sql = """
@@ -288,7 +288,7 @@ def query_db_status(oracle_owner, oracle_home, oracle_sid):
     r      = {}
     out = process.communicate(input=sql.encode(), timeout=5)
     for l in out[0].decode('utf-8').splitlines():
-        #module.warn(l.rstrip())
+        #module.warn("{}:{}".format(oracle_sid,l.rstrip()))
         if l.strip() in ('STATUS', 'OPEN_MODE', 'ORA_DG_ON', 'DATABASE_ROLE'):
             header = l.strip()
             delim  = False
@@ -308,7 +308,7 @@ def query_db_status(oracle_owner, oracle_home, oracle_sid):
         return ['ASM', 'STARTED']
     elif oracle_sid.startswith('+ASM'):
         return ['ASM']
-    
+
     if r['STATUS'] == 'STARTED':
         return ['STARTED']
     elif r['STATUS'] == 'MOUNTED' and int(r['ORA_DG_ON']):
@@ -356,7 +356,7 @@ def main():
 
     for sid in list(h.facts_item):
         try:
-            sqlplus_path = Path(h.facts_item[sid]['ORACLE_HOME'], 'bin', 'sqlplus')
+            sqlplus_path = Path(h.facts_item[sid]['ORACLE_HOME'], 'bin', 'oracle')
             oracle_owner = getpwuid(os.stat(sqlplus_path).st_uid).pw_name
             h.facts_item[sid]['owner'] = oracle_owner
         except:
